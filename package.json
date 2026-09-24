@@ -1,0 +1,19 @@
+{
+  "name": "markaki",
+  "version": "1.0.0",
+  "description": "Automacao de solicitacao de servico extra no CPROEIS",
+  "scripts": {
+    "login": "node src/robot.js --explorar",
+    "robot": "node src/robot.js",
+    "painel": "node src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^18.0.3",
+    "express": "^5.2.1",
+    "playwright": "^1.63.0"
+  }
+}
