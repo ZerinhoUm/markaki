@@ -26,15 +26,21 @@ app.get('/api/bookings', exigirPin, (req, res) => {
   res.json(bookings.load());
 });
 
+const TURNOS_VALIDOS = new Set(['06:00-18:00', '07:00-19:00']);
+
 app.post('/api/bookings', exigirPin, (req, res) => {
-  const { data, horaInicio, horaFim } = req.body || {};
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(data || '') || !/^\d{2}:\d{2}$/.test(horaInicio || '') || !/^\d{2}:\d{2}$/.test(horaFim || '')) {
-    return res.status(400).json({ erro: 'Formato invalido. Use data YYYY-MM-DD e horas HH:MM' });
+  const { datas, horaInicio, horaFim } = req.body || {};
+  const lista = Array.isArray(datas) ? datas.filter(Boolean).slice(0, 3) : [];
+  if (!lista.length || !lista.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))) {
+    return res.status(400).json({ erro: 'Informe de 1 a 3 datas no formato YYYY-MM-DD' });
   }
-  if (horaFim <= horaInicio) {
-    return res.status(400).json({ erro: 'Hora fim precisa ser depois da hora inicio' });
+  if (new Set(lista).size !== lista.length) {
+    return res.status(400).json({ erro: 'As datas precisam ser diferentes' });
   }
-  const entry = bookings.add({ data, horaInicio, horaFim });
+  if (!TURNOS_VALIDOS.has(`${horaInicio}-${horaFim}`)) {
+    return res.status(400).json({ erro: 'Horario invalido. Use 06:00-18:00 ou 07:00-19:00' });
+  }
+  const entry = bookings.add({ datas: lista, horaInicio, horaFim });
   res.status(201).json(entry);
 });
 

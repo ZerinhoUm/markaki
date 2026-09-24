@@ -21,7 +21,7 @@ function add(booking) {
   const bookings = load();
   const entry = {
     id: Date.now().toString(36),
-    data: booking.data, // "YYYY-MM-DD"
+    datas: booking.datas, // ["YYYY-MM-DD", ...] em ordem de prioridade (ate 3)
     horaInicio: booking.horaInicio, // "HH:MM"
     horaFim: booking.horaFim, // "HH:MM"
     criadoEm: new Date().toISOString(),

@@ -11,9 +11,13 @@
   h1 { font-size: 1.3rem; margin-bottom: 4px; }
   .sub { color: #9db4cc; font-size: .85rem; margin-bottom: 16px; }
   label { display: block; font-size: .85rem; color: #9db4cc; margin: 12px 0 4px; }
-  input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #2a4a6d; background: #0d2137; color: #eee; font-size: 1rem; }
+  input[type=date] { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #2a4a6d; background: #0d2137; color: #eee; font-size: 1rem; }
   button { width: 100%; padding: 14px; border: 0; border-radius: 8px; background: #1f6feb; color: #fff; font-size: 1rem; font-weight: 600; margin-top: 16px; cursor: pointer; }
   button:active { background: #1a5fd0; }
+  .turnos { display: flex; gap: 8px; margin-top: 4px; }
+  .turno { flex: 1; text-align: center; padding: 14px; border-radius: 8px; border: 2px solid #2a4a6d; background: #0d2137; cursor: pointer; font-weight: 600; }
+  .turno.sel { border-color: #1f6feb; background: #1f6feb33; }
+  .turno small { display: block; color: #9db4cc; font-weight: 400; margin-top: 2px; }
   .item { display: flex; justify-content: space-between; align-items: center; background: #0d2137; border-radius: 8px; padding: 12px; margin-top: 8px; }
   .item .quando { font-weight: 600; }
   .item .horas { color: #9db4cc; font-size: .85rem; }
@@ -38,13 +42,21 @@
 <div id="telaPrincipal" class="esconder">
   <div class="card">
     <h1>📅 Marcar serviço extra</h1>
-    <div class="sub">O robô envia suas escolhas toda quinta às 06:00</div>
-    <label for="data">Dia do extra</label>
-    <input id="data" type="date">
-    <label for="horaInicio">Hora início</label>
-    <input id="horaInicio" type="time" value="06:00">
-    <label for="horaFim">Hora fim</label>
-    <input id="horaFim" type="time" value="14:00">
+    <div class="sub">O robô envia quinta às 06:00. Se não tiver vaga no 1º dia, tenta o 2º e depois o 3º.</div>
+
+    <label for="data1">1ª opção de dia</label>
+    <input id="data1" type="date">
+    <label for="data2">2ª opção (se a 1ª falhar)</label>
+    <input id="data2" type="date">
+    <label for="data3">3ª opção (se a 2ª falhar)</label>
+    <input id="data3" type="date">
+
+    <label>Horário</label>
+    <div class="turnos">
+      <div class="turno sel" id="t1" onclick="escolherTurno('t1')">06h às 18h<small>manhã/tarde</small></div>
+      <div class="turno" id="t2" onclick="escolherTurno('t2')">07h às 19h<small>manhã/tarde</small></div>
+    </div>
+
     <button onclick="adicionar()">Adicionar</button>
     <div class="erro esconder" id="erro"></div>
     <div class="ok esconder" id="ok"></div>
@@ -58,6 +70,14 @@
 
 <script>
 let pin = localStorage.getItem('pin') || '';
+let turno = 't1';
+const TURNOS = { t1: ['06:00', '18:00'], t2: ['07:00', '19:00'] };
+
+function escolherTurno(id) {
+  turno = id;
+  document.getElementById('t1').classList.toggle('sel', id === 't1');
+  document.getElementById('t2').classList.toggle('sel', id === 't2');
+}
 
 function fmtData(iso) {
   const [a, m, d] = iso.split('-');
@@ -98,16 +118,19 @@ function aviso(id, texto) {
 }
 
 async function adicionar() {
-  const data = document.getElementById('data').value;
-  const horaInicio = document.getElementById('horaInicio').value;
-  const horaFim = document.getElementById('horaFim').value;
-  if (!data) return aviso('erro', 'Escolhe o dia!');
+  const datas = ['data1', 'data2', 'data3']
+    .map((id) => document.getElementById(id).value)
+    .filter(Boolean);
+  if (!datas.length) return aviso('erro', 'Escolhe pelo menos o 1º dia!');
+  if (new Set(datas).size !== datas.length) return aviso('erro', 'Os dias precisam ser diferentes!');
+  const [horaInicio, horaFim] = TURNOS[turno];
   try {
     await api('/api/bookings', {
       method: 'POST',
-      body: JSON.stringify({ data, horaInicio, horaFim }),
+      body: JSON.stringify({ datas, horaInicio, horaFim }),
     });
     aviso('ok', 'Adicionado! ✅');
+    for (const id of ['data1', 'data2', 'data3']) document.getElementById(id).value = '';
     carregar();
   } catch (e) {
     aviso('erro', e.message);
@@ -126,14 +149,17 @@ async function carregar() {
     lista.innerHTML = '<div class="vazio">Nenhum dia agendado ainda</div>';
     return;
   }
-  lista.innerHTML = itens.map((b) => `
+  lista.innerHTML = itens.map((b) => {
+    const datas = (b.datas || [b.data]).map(fmtData).join(' → ');
+    return `
     <div class="item">
       <div>
-        <div class="quando">${fmtData(b.data)}</div>
+        <div class="quando">${datas}</div>
         <div class="horas">${b.horaInicio} às ${b.horaFim}</div>
       </div>
       <button class="del" onclick="remover('${b.id}')">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 if (pin) entrar();

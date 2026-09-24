@@ -81,7 +81,7 @@ async function filtrarData(page, dataISO) {
 }
 
 // Clica em Participar no evento cujo texto bate com a hora de inicio.
-async function participar(page, booking) {
+async function participar(page, booking, data) {
   const alvo = await page.evaluate((horaInicio) => {
     const botoes = [...document.querySelectorAll('.btnParticipar')];
     const candidatos = botoes.map((b) => {
@@ -94,16 +94,16 @@ async function participar(page, booking) {
 
   console.log('[robot] eventos no grid:', JSON.stringify(alvo.candidatos));
   if (alvo.achou < 0) {
-    await screenshot(page, `sem-horario-${booking.data}`);
-    console.log(`[robot] nenhum evento as ${booking.horaInicio} em ${booking.data}`);
+    await screenshot(page, `sem-horario-${data}`);
+    console.log(`[robot] nenhum evento as ${booking.horaInicio} em ${data}`);
     return false;
   }
 
   const botoes = await page.$$('.btnParticipar');
   await botoes[alvo.achou].click();
   await sleep(4000);
-  await screenshot(page, `participar-${booking.data}`);
-  console.log(`[robot] Participar clicado: ${booking.data} ${booking.horaInicio}`);
+  await screenshot(page, `participar-${data}`);
+  console.log(`[robot] Participar clicado: ${data} ${booking.horaInicio}`);
   return true;
 }
 
@@ -133,15 +133,20 @@ async function main() {
     await sleep(1500);
 
     for (const booking of pendentes) {
-      console.log(`[robot] === ${booking.data} ${booking.horaInicio}-${booking.horaFim} ===`);
-      try {
-        const status = await filtrarData(page, booking.data);
-        if (status === 'ok' && (await participar(page, booking))) {
-          enviados.push(booking.id);
+      const datas = booking.datas || [booking.data];
+      console.log(`[robot] === ${datas.join(' -> ')} | ${booking.horaInicio}-${booking.horaFim} ===`);
+      for (const data of datas) {
+        try {
+          const status = await filtrarData(page, data);
+          if (status === 'ok' && (await participar(page, booking, data))) {
+            enviados.push(booking.id);
+            break;
+          }
+          console.log(`[robot] sem vaga em ${data}, tentando proxima data...`);
+        } catch (err) {
+          console.error(`[robot] falha em ${data}: ${err.message}`);
+          await screenshot(page, `erro-${data}`);
         }
-      } catch (err) {
-        console.error(`[robot] falha em ${booking.data}: ${err.message}`);
-        await screenshot(page, `erro-${booking.data}`);
       }
     }
 
