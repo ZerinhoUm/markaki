@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markaki — Serviço Extra</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0d2137; color: #eee; min-height: 100vh; padding: 16px; }
+  .card { background: #16304d; border-radius: 12px; padding: 20px; max-width: 480px; margin: 0 auto 16px; }
+  h1 { font-size: 1.3rem; margin-bottom: 4px; }
+  .sub { color: #9db4cc; font-size: .85rem; margin-bottom: 16px; }
+  label { display: block; font-size: .85rem; color: #9db4cc; margin: 12px 0 4px; }
+  input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #2a4a6d; background: #0d2137; color: #eee; font-size: 1rem; }
+  button { width: 100%; padding: 14px; border: 0; border-radius: 8px; background: #1f6feb; color: #fff; font-size: 1rem; font-weight: 600; margin-top: 16px; cursor: pointer; }
+  button:active { background: #1a5fd0; }
+  .item { display: flex; justify-content: space-between; align-items: center; background: #0d2137; border-radius: 8px; padding: 12px; margin-top: 8px; }
+  .item .quando { font-weight: 600; }
+  .item .horas { color: #9db4cc; font-size: .85rem; }
+  .del { background: none; border: 0; color: #f66; font-size: 1.2rem; width: auto; padding: 4px 10px; margin: 0; }
+  .erro { color: #f66; font-size: .85rem; margin-top: 8px; }
+  .ok { color: #6f6; font-size: .85rem; margin-top: 8px; }
+  .vazio { color: #9db4cc; text-align: center; padding: 16px; font-size: .9rem; }
+  .esconder { display: none; }
+</style>
+</head>
+<body>
+
+<div class="card" id="telaPin">
+  <h1>🔒 Markaki</h1>
+  <div class="sub">Digite o PIN pra entrar</div>
+  <label for="pin">PIN</label>
+  <input id="pin" type="password" inputmode="numeric" placeholder="****">
+  <button onclick="entrar()">Entrar</button>
+  <div class="erro esconder" id="pinErro">PIN errado, tenta de novo</div>
+</div>
+
+<div id="telaPrincipal" class="esconder">
+  <div class="card">
+    <h1>📅 Marcar serviço extra</h1>
+    <div class="sub">O robô envia suas escolhas toda quinta às 06:00</div>
+    <label for="data">Dia do extra</label>
+    <input id="data" type="date">
+    <label for="horaInicio">Hora início</label>
+    <input id="horaInicio" type="time" value="06:00">
+    <label for="horaFim">Hora fim</label>
+    <input id="horaFim" type="time" value="14:00">
+    <button onclick="adicionar()">Adicionar</button>
+    <div class="erro esconder" id="erro"></div>
+    <div class="ok esconder" id="ok"></div>
+  </div>
+
+  <div class="card">
+    <h1>🗓️ Agendados</h1>
+    <div id="lista"><div class="vazio">Nenhum dia agendado ainda</div></div>
+  </div>
+</div>
+
+<script>
+let pin = localStorage.getItem('pin') || '';
+
+function fmtData(iso) {
+  const [a, m, d] = iso.split('-');
+  return `${d}/${m}/${a}`;
+}
+
+async function api(caminho, opcoes = {}) {
+  const res = await fetch(caminho, {
+    ...opcoes,
+    headers: { 'Content-Type': 'application/json', 'X-PIN': pin },
+  });
+  if (res.status === 401) throw new Error('401');
+  if (!res.ok) {
+    const corpo = await res.json().catch(() => ({}));
+    throw new Error(corpo.erro || 'Erro ' + res.status);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+async function entrar() {
+  pin = document.getElementById('pin').value.trim();
+  try {
+    await api('/api/bookings');
+    localStorage.setItem('pin', pin);
+    document.getElementById('telaPin').classList.add('esconder');
+    document.getElementById('telaPrincipal').classList.remove('esconder');
+    carregar();
+  } catch {
+    document.getElementById('pinErro').classList.remove('esconder');
+  }
+}
+
+function aviso(id, texto) {
+  const el = document.getElementById(id);
+  el.textContent = texto;
+  el.classList.remove('esconder');
+  setTimeout(() => el.classList.add('esconder'), 3000);
+}
+
+async function adicionar() {
+  const data = document.getElementById('data').value;
+  const horaInicio = document.getElementById('horaInicio').value;
+  const horaFim = document.getElementById('horaFim').value;
+  if (!data) return aviso('erro', 'Escolhe o dia!');
+  try {
+    await api('/api/bookings', {
+      method: 'POST',
+      body: JSON.stringify({ data, horaInicio, horaFim }),
+    });
+    aviso('ok', 'Adicionado! ✅');
+    carregar();
+  } catch (e) {
+    aviso('erro', e.message);
+  }
+}
+
+async function remover(id) {
+  await api('/api/bookings/' + id, { method: 'DELETE' });
+  carregar();
+}
+
+async function carregar() {
+  const lista = document.getElementById('lista');
+  const itens = await api('/api/bookings');
+  if (!itens.length) {
+    lista.innerHTML = '<div class="vazio">Nenhum dia agendado ainda</div>';
+    return;
+  }
+  lista.innerHTML = itens.map((b) => `
+    <div class="item">
+      <div>
+        <div class="quando">${fmtData(b.data)}</div>
+        <div class="horas">${b.horaInicio} às ${b.horaFim}</div>
+      </div>
+      <button class="del" onclick="remover('${b.id}')">✕</button>
+    </div>`).join('');
+}
+
+if (pin) entrar();
+</script>
+</body>
+</html>
